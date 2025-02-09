@@ -82,6 +82,12 @@ def leftover_parser() -> argparse.Namespace:
             help="Choosing the image model to be used, default=ViT (vision transformer)",
         )
         parser.add_argument(
+            "--hidden_size",
+            type=int,
+            default=128,
+            help="Choosing the hidden size, default=128",
+        )
+        parser.add_argument(
             "--weight_decay",
             type=float,
             default=0,

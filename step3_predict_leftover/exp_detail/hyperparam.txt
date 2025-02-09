@@ -1,0 +1,40 @@
+dropout_rate:
+  distribution: categorical
+  values:
+    - 0
+    - 0.2
+batch_size:
+  distribution: categorical
+  values:
+    - 32
+    - 64
+    - 128
+    - 256
+    - 512
+epochs:
+  distribution: int_uniform
+  max: 4396
+  min: 10
+lr:
+  distribution: categorical
+  values:
+    - 1e-2
+    - 1e-3
+    - 1e-4
+    - 1e-5
+hidden_size:
+  distribution: categorical
+  values:
+    - 32
+    - 64
+    - 128
+    - 256
+    - 512
+weight_decay:
+  distribution: categorical
+  values:
+    - 0
+    - 1e-1
+    - 1e-2
+    - 1e-3
+    - 1e-4

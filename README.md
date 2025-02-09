@@ -15,7 +15,7 @@ FoodRemainder offers the potential for free-living food leftover estimation, pav
 Our experiments are conducted on a Linux-based machine with the following specifications:
 
 * Linux-based OS 
-* Python 3.9.15
+* Python 3.12.8
 * conda 4.14.0
 * PyTorch 1.11.0
 * git 2.34.1

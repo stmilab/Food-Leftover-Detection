@@ -80,4 +80,4 @@ FoodRemainder contains 3 major components:
 We used the CGMacros dataset (version 1.0.0). 
 * The dataset is publicly available on [PhysioNet](https://physionet.org/content/cgmacros/1.0.0/)
 
-* Remember to modify `--data_path` according to your dataset location, otherwise change the default value in [`parser.py`](step3_predict_leftover/utils/parser.py)
+* Remember to modify `--saved_path` according to your dataset location, otherwise change the default value in [`parser.py`](step3_predict_leftover/utils/parser.py)

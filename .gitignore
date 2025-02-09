@@ -173,7 +173,6 @@ cython_debug/
 # *.json
 # Ignoring pytorch datasets 
 *.pth
-*.png
 models/vit_pytorch/
 utils/leftover_labels.csv
 .vscode/

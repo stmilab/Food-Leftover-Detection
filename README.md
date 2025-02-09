@@ -71,7 +71,7 @@ FoodRemainder contains 3 major components:
 * The [`step3_predict_leftover/models/`](step3_predict_leftover/models/) contains the custom functions used in the experiments.
     * The [feature selector](step3_predict_leftover/models/exchange.py) mechanism is based on [CEN](https://github.com/yikaiw/CEN/tree/master) implementation
 * [`step3_predict_leftover/exp_detail/`](step3_predict_leftover/exp_detail/) contains the detailed configurations of hyperparameters used by all experiments conducted and reported in the manuscript
-    * Hyperparameter tuning is conducted using (Weights & Bias)[https://wandb.ai/] with the following scope: [`hyperparam.txt`](exp_setup/mimic_hyperparam.txt)
+    * Hyperparameter tuning is conducted using [Weights & Bias](https://wandb.ai/) with the following scope: [`hyperparam.txt`](exp_setup/mimic_hyperparam.txt)
 
 ## Datasets
 

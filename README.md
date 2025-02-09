@@ -19,10 +19,10 @@ Our experiments are conducted on a Linux-based machine with the following specif
 * conda 4.14.0
 * PyTorch 1.11.0
 * git 2.34.1
-* CUDA 11.4 or 11.6 (for GPU acceleration)
+* CUDA 12.0 (for GPU acceleration)
 
 
-We highly recommend you to use the conda environment ([`environment.yml`](environment.yml)) we shared to avoid potential compatibility issues. To set up Conda for your computer, you can follow the official instructions [here](https://conda.io/projects/conda/en/latest/user-guide/install/index.html).
+We highly recommend you to use the conda environment ([`environment.yml`](environment.yml)) we shared to avoid potential compatibility issues. To set up Conda for your computer, you can follow the official [instruction](https://conda.io/projects/conda/en/latest/user-guide/install/index.html).
 
 
 Instructions for Unix-based Command Line Input: 
@@ -46,13 +46,19 @@ FoodRemainder contains 3 major components:
 
 ### GUI for Label Annotation
 
-__TODO: Add GUI code__
+* The [`step1_annotate_img/`](step1_annotate_img/) directory contains the scripts and GUI to annotate the food leftover images
+* The [`step1_annotate_img/annotate_label.py`](step1_annotate_img/annotate_label.py) file call the GUI to start annotating
+    * Please modify `image_directory` according to your dataset location
+    * Specify the filename of your output by modifying `json_path`
+
 ![Visualization of GUI](figures/leftover_GUI.png)
 
 ### Dinov2 for Channel Extraction
 
-__TODO: Add Dinov2 code__
-
+* The [`step2_extract_channel/`](step2_extract_channel/) directory contains the scripts to convert original images into semantic segmentations and monocular depth images. 
+* The [`step2_extract_channel/dinov2/`](step2_extract_channel/dinov2/) is modified from the original [DINOv2](https://github.com/facebookresearch/dinov2) repository.
+    * The [`depth_estimation.py`](step2_extract_channel/depth_estimation.py) file converts the original images into monocular depth images
+    * The [`segmentation.py`](step2_extract_channel/segmentation.py) file converts the original images into semantic segmentation images
 
 ### Model for Food Leftover Detection
 
@@ -74,4 +80,4 @@ __TODO: Add Dinov2 code__
 We used the CGMacros dataset (version 1.0.0). 
 * The dataset is publicly available on [PhysioNet](https://physionet.org/content/cgmacros/1.0.0/)
 
-* Remember to modify `--data_path` accordingly, otherwise change the default value in [`parser.py`](step3_predict_leftover/utils/parser.py)
+* Remember to modify `--data_path` according to your dataset location, otherwise change the default value in [`parser.py`](step3_predict_leftover/utils/parser.py)

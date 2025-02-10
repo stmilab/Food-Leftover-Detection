@@ -177,3 +177,4 @@ models/vit_pytorch/
 utils/leftover_labels.csv
 .vscode/
 wandb/
+*.csv

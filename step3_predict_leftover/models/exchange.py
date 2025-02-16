@@ -105,6 +105,33 @@ class Classifier(nn.Module):
         return zs
 
 
+class vanilla_vit(nn.Module):
+    def __init__(
+        self, img_model, input_size=64, hidden=512, output_size=4, dropout=0.1
+    ):
+        super().__init__()
+        self.model = img_model
+        self.layer1 = nn.Linear(input_size, hidden)
+        self.layer2 = nn.Linear(hidden, hidden // 2)
+        self.layer3 = nn.Linear(hidden // 2, output_size)
+        self.act = nn.ReLU()
+        self.dropout = nn.Dropout(p=dropout)
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, x):
+        zs = self.model(x)
+        zs = zs.flatten(1)
+        zs = self.layer1(zs)
+        zs = self.dropout(zs)
+        zs = self.act(zs)
+        zs = self.layer2(zs)
+        zs = self.dropout(zs)
+        zs = self.act(zs)
+        zs = self.layer3(zs)
+        zs = self.softmax(zs)
+        return zs
+
+
 class CEN(nn.Module):
     def __init__(
         self,
@@ -120,15 +147,15 @@ class CEN(nn.Module):
         self.after_vit = after_models  # 3 models per after
         self.conv1 = conv1x1(crop_size, 64)
         self.num_ch = num_parallel
-        self.bn = BatchNorm1dParallel(64, num_parallel)
+        self.bn = LayerNormParallel(64, num_parallel)
         self.relu = ModuleParallel(nn.ReLU(inplace=True))
         # NOTE: Exchanging channels
         self.exchange = Exchange()
         self.threshold = threshold
-        self.bn_list = []
-        for module in self.bn.modules():
-            if isinstance(module, nn.BatchNorm1d) or isinstance(module, nn.BatchNorm2d):
-                self.bn_list.append(module)
+        self.ln_list = []
+        for module in self.ln.modules():
+            if isinstance(module, nn.LayerNorm):
+                self.ln_list.append(module)
         # NOTE: Merging the values into a singular
         self.classifier = Classifier()
 
@@ -139,9 +166,9 @@ class CEN(nn.Module):
             b_zs.append(self.after_vit(b_x[:, i]))
             a_zs.append(self.after_vit(a_x[:, i]))
         assert len(a_zs) == self.num_ch, "Input doesn't contain 3 images!!"
-        b_zs, a_zs = self.bn(b_zs), self.bn(a_zs)
-        b_zs = self.exchange(b_zs, self.bn_list, self.threshold)
-        a_zs = self.exchange(a_zs, self.bn_list, self.threshold)
+        b_zs, a_zs = self.ln(b_zs), self.ln(a_zs)
+        b_zs = self.exchange(b_zs, self.ln_list, self.threshold)
+        a_zs = self.exchange(a_zs, self.ln_list, self.threshold)
         b_zs, a_zs = self.relu(b_zs), self.relu(a_zs)
         return self.classifier(b_zs, a_zs)
 

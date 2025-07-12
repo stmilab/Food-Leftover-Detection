@@ -29,18 +29,22 @@ def set_random_seed(seed=2025):
     torch.backends.cudnn.benchmark = False
 
 
-def iterate_dataframe(df):
-    dataset = LeftoverDataset(len(df))
-    for i, row in tqdm(df.iterrows(), total=len(df), ascii=True):
-        orig_before, dep_before, seg_before = get_img(row["before image"])
-        orig_after, dep_after, seg_after = get_img(row["after image"])
+def iterate_orig_dataframe(orig_df: pd.DataFrame, merge_dataset=None) -> Dataset:
+    if "original" not in orig_df["image type"].unique():
+        raise ValueError("orig_df should at least contain 1 original image type")
+    leftover_dataset = LeftoverDataset(len(orig_df))
+    for _, row in tqdm(orig_df.iterrows(), total=len(orig_df), ascii=True):
+        orig_before, dep_before, seg_before = get_original_img(row["before image"])
+        orig_after, dep_after, seg_after = get_original_img(row["after image"])
 
         before_img = np.stack((orig_before, dep_before, seg_before), axis=0)
         after_img = np.stack((orig_after, dep_after, seg_after), axis=0)
-        leftover_label = leftover_label_convert(row["leftover"])
-        dataset.append(before_img, after_img, leftover_label)
-    dataset.convert_to_torch()
-    return dataset
+        leftover_label = row["leftover"]
+        leftover_dataset.append(before_img, after_img, leftover_label)
+    leftover_dataset.convert_to_torch()
+    if merge_dataset is not None:
+        leftover_dataset.merge_dataset(merge_dataset)
+    return leftover_dataset
 
 
 def get_dataset(regenerate: bool = False, saved_path: str = "dataset.pth") -> Dataset:
@@ -58,14 +62,16 @@ def get_dataset(regenerate: bool = False, saved_path: str = "dataset.pth") -> Da
         regenerate = True  # if no found, then generate anyway
     if regenerate:
         meta_df = load_meta_data()
+        meta_df["leftover"] = meta_df["leftover"].apply(leftover_label_convert)
+        meta_df["image type"] = "original"
         # NOTE: Only focusing on dinner and lunch
         # meta_df = meta_df[meta_df["meal_type"] == "Lunch/Dinner"]
         train_df, val_df, test_df = generate_split(meta_df)
         # Create dataset
         # NOTE: Start counting
-        train_dataset = iterate_dataframe(train_df)
-        val_dataset = iterate_dataframe(val_df)
-        test_dataset = iterate_dataframe(test_df)
+        train_dataset = iterate_orig_dataframe(train_df)
+        val_dataset = iterate_orig_dataframe(val_df)
+        test_dataset = iterate_orig_dataframe(test_df)
         torch.save((train_dataset, val_dataset, test_dataset), saved_path)
         print(f"Leftover Dataset saved to {saved_path}!")
         return train_dataset, val_dataset, test_dataset
@@ -89,7 +95,7 @@ def generate_split(df, train_ratio=0.7, val_ratio=0.1, test_ratio=0.2):
 
 # Define your custom dataset
 class LeftoverDataset(Dataset):
-    def __init__(self, data_len: int):
+    def __init__(self, data_len: int = 0):
         self.before_img = [None] * data_len
         self.after_img = [None] * data_len
         self.leftover_label = [None] * data_len
@@ -102,13 +108,46 @@ class LeftoverDataset(Dataset):
         after_img: np.ndarray,
         leftover_label: str,
     ):
+        if self.curr_idx >= self.data_len:
+            print("Dataset is full, cannot append more data.")
+            raise IndexError("Hint: make a new dataset then merge")
         self.before_img[self.curr_idx] = before_img
         self.after_img[self.curr_idx] = after_img
         self.leftover_label[self.curr_idx] = leftover_label
         self.curr_idx += 1
 
+    def remove_extra_len(self):
+        self.data_len = self.curr_idx
+        self.before_img = self.before_img[: self.data_len]
+        self.after_img = self.after_img[: self.data_len]
+        self.leftover_label = self.leftover_label[: self.data_len]
+
+    def merge_dataset(self, other_dataset):
+        if not isinstance(other_dataset, LeftoverDataset):
+            raise TypeError("The other dataset must also be LeftoverDataset")
+        if self.curr_idx < self.data_len:
+            self.remove_extra_len()
+        if other_dataset.curr_idx < other_dataset.data_len:
+            other_dataset.remove_extra_len()
+        if not isinstance(other_dataset.before_img, torch.Tensor):
+            print("Merging datasets that are not in torch format, converting to torch.")
+            other_dataset.convert_to_torch()
+        if not isinstance(self.before_img, torch.Tensor):
+            print("Merging datasets that are not in torch format, converting to torch.")
+            self.convert_to_torch()
+        self.before_img = torch.cat((self.before_img, other_dataset.before_img), dim=0)
+        self.after_img = torch.cat((self.after_img, other_dataset.after_img), dim=0)
+        self.leftover_label = torch.cat(
+            (self.leftover_label, other_dataset.leftover_label), dim=0
+        )
+        self.curr_idx += other_dataset.data_len
+        self.data_len += other_dataset.data_len
+
     def convert_to_torch(self):
         # Converting to torch
+        if isinstance(self.before_img, torch.Tensor):
+            print("Dataset already converted to torch tensors.")
+            return
         self.before_img = torch.from_numpy(np.array(self.before_img)).float()
         self.after_img = torch.from_numpy(np.array(self.after_img)).float()
         self.leftover_label = torch.from_numpy(np.array(self.leftover_label)).long()
@@ -161,14 +200,14 @@ def load_meta_data(
     return df
 
 
-def get_img(
+def get_original_img(
     img_name: str,
-    # img_dir="/home/data/datasets/CGM_Leftover_Images/",
-    img_dir="/scratch/CGM_Leftover_Images/",
+    img_dir="/home/data/datasets/CGM_Leftover_Images/",
+    # img_dir="/scratch/CGM_Leftover_Images/",
     target_size=(crop_size, crop_size),
 ) -> np.ndarray:
     """
-    get_img loads an image file and returns it as a numpy array
+    get_original_img loads an image file and returns it as a numpy array
     Args:
         img_name (str): The name of the image file
         img_dir (str, optional): The directory where the image file is located. Defaults to "/home/data/datasets/CGM_Leftover_Images/".
@@ -215,33 +254,85 @@ def leftover_label_convert(leftover_str: str):
 
 if __name__ == "__main__":
     set_random_seed()
-    # NOTE: Running this script to generate dataset, toggle regenerate to False if you want to only inspect the dataset
     train_set, val_set, test_set = get_dataset(regenerate=True)
-    # NOTE: Create DataLoader based on the saved dataset
+    # Create DataLoader based on the saved dataset
+    # train_sampler = TriSampler(train_set, batch_size_per_task=10, sampling_rate=0.1)
     train_loader = DataLoader(
         train_set,
         batch_size=9999,
+        # sampler=train_sampler,
         shuffle=False,
     )
-    # NOTE: Iterate through the DataLoader
+    # Iterate through the DataLoader
     for data, leftover_label in train_loader:
         before_img, after_img = data
+        # torch.Size([300, 3, crop_size, crop_size, 3]) torch.Size([300, 3, crop_size, crop_size, 3]) torch.Size([300])
         print(before_img.shape, after_img.shape, leftover_label.shape)
-    # NOTE: repeating the same inspection on val and test set
+    # val_sampler = TriSampler(val_set, batch_size_per_task=10, sampling_rate=0.1)
     val_dataloader = DataLoader(
         val_set,
         batch_size=9999,
+        # sampler=val_sampler,
         shuffle=False,
     )
     for data, leftover_label in val_dataloader:
         before_img, after_img = data
+        # torch.Size([300, 3, crop_size, crop_size, 3]) torch.Size([300, 3, crop_size, crop_size, 3]) torch.Size([300])
         print(before_img.shape, after_img.shape, leftover_label.shape)
+    # test_sampler = TriSampler(test_set, batch_size_per_task=10, sampling_rate=0.1)
     test_dataloader = DataLoader(
         test_set,
         batch_size=9999,
+        # sampler=test_sampler,
         shuffle=False,
     )
     for data, leftover_label in test_dataloader:
         before_img, after_img = data
+        # torch.Size([300, 3, crop_size, crop_size, 3]) torch.Size([300, 3, crop_size, crop_size, 3]) torch.Size([300])
         print(before_img.shape, after_img.shape, leftover_label.shape)
     print("Completed generating dataset")
+    # import torchvision.transforms as transforms
+    # import matplotlib.pyplot as plt
+
+    # def tensor2img(tensor):
+    #     return tensor.int().permute(1, 2, 0).numpy()
+
+    # def visual_todo(idx):
+    #     (b_img, a_img), label = test_dataloader.dataset[idx]
+    #     orig_before, dep_before, seg_before = b_img[0], b_img[1], b_img[2]
+    #     orig_after, dep_after, seg_after = a_img[0], a_img[1], a_img[2]
+    #     fig, axs = plt.subplots(2, 3, figsize=(10, 9))
+    #     # Plot before image - orig
+    #     axs[0, 0].imshow(tensor2img(orig_before))
+    #     axs[0, 0].set_title(f"Image before meal (original)")
+    #     axs[0, 0].axis("off")
+
+    #     # Plot before image - dep
+    #     axs[0, 1].imshow(tensor2img(dep_before))
+    #     axs[0, 1].set_title("Image before meal (depth)")
+    #     axs[0, 1].axis("off")
+
+    #     # Plot before image - seg
+    #     axs[0, 2].imshow(tensor2img(seg_before))
+    #     axs[0, 2].set_title("Image before meal (segmentation)")
+    #     axs[0, 2].axis("off")
+
+    #     # Plot after image - orig
+    #     axs[1, 0].imshow(tensor2img(orig_after))
+    #     axs[1, 0].set_title("Image after meal (original)")
+    #     axs[1, 0].axis("off")
+
+    #     # Plot after image - dep
+    #     axs[1, 1].imshow(tensor2img(dep_after))
+    #     axs[1, 1].set_title("Image after meal (depth)")
+    #     axs[1, 1].axis("off")
+
+    #     # Plot after image - seg
+    #     axs[1, 2].imshow(tensor2img(seg_after))
+    #     axs[1, 2].set_title("Image after meal (segmentation)")
+    #     axs[1, 2].axis("off")
+    #     plt.tight_layout()
+    #     plt.savefig(f"../stupid_sicong.png")
+    #     plt.close()
+
+    # pdb.set_trace()

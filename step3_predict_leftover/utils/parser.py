@@ -2,9 +2,29 @@ import argparse
 import sys
 import os
 import pdb
+import torch, numpy as np
+import random
 
 sys.path.append("utils/")
 sys.path.append("models/")
+
+
+def set_seed(seed: int = 42):
+    """
+    Set random seed for reproducibility across random, numpy, and PyTorch (CPU + CUDA).
+
+    Parameters:
+    - seed: Integer seed value
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if using multi-GPU
+
+    # Ensure deterministic behavior in PyTorch
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def str2bool(v: str) -> bool:
@@ -82,10 +102,15 @@ def leftover_parser() -> argparse.Namespace:
             help="Choosing the image model to be used, default=ViT (vision transformer)",
         )
         parser.add_argument(
-            "--hidden_size",
+            "--cen_mode",
+            default="CEN",
+            help="Choosing the image model to be used, default=ViT (vision transformer)",
+        )
+        parser.add_argument(
+            "--hidden_dim",
             type=int,
-            default=128,
-            help="Choosing the hidden size, default=128",
+            default=64,
+            help="Choosing the hidden dimension size, default=64",
         )
         parser.add_argument(
             "--weight_decay",
@@ -116,6 +141,12 @@ def leftover_parser() -> argparse.Namespace:
             default=0.2,
             help="Choosing the threshold for CEN, default=0.2",
         )
+        parser.add_argument(
+            "--dropout_rate",
+            type=float,
+            default=0.1,
+            help="Choosing the dropout rate, default=0.2",
+        )
         # NOTE: Depedency based on local environment
         parser.add_argument(
             "--json_dir",
@@ -124,13 +155,13 @@ def leftover_parser() -> argparse.Namespace:
         )
         parser.add_argument(
             "--saved_path",
-            default="utils/dataset.pth",
+            default="/scratch/CGM_Leftover_Images/balanced_dataset.pth",
             help="Please provide the Path to the pre-saved dataset",
         )
         parser.add_argument(
             "--sel_gpu",
             type=str2list_int,
-            default="3",
+            default="7",
             help="Choosing which GPUs to use (STMI has GPU 0~7)",
         )
         parser.add_argument(
@@ -155,10 +186,17 @@ def leftover_parser() -> argparse.Namespace:
         parser.add_argument(
             "--wandb_tag",
             type=str,
-            default="CEN",
+            default="CEN-BSN25",
             help="If using Wandb, define tag to help filter results",
         )
+        parser.add_argument(
+            "---random_seed",
+            type=int,
+            default=2025,
+            help="Define the random seed for reproducibility, default=42",
+        )
         flags, _ = parser.parse_known_args()
+        set_seed(flags.random_seed)
         # setting cuda device
         if 0 > min(flags.sel_gpu):
             flags.device = "cpu"

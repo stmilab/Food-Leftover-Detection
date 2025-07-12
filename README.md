@@ -1,4 +1,4 @@
-_Manuscript Under review by EMBC 2025._
+_Manuscript Under review by BSN 2025._
 
 # Food-Leftover-Detection
 This is the code implementation for our EMBC 2025 submission: Efficient Cross-Channel Feature Selection for Food Leftover Detection

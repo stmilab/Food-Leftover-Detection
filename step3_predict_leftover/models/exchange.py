@@ -147,7 +147,7 @@ class CEN(nn.Module):
         self.after_vit = after_models  # 3 models per after
         self.conv1 = conv1x1(crop_size, 64)
         self.num_ch = num_parallel
-        self.bn = LayerNormParallel(64, num_parallel)
+        self.ln = LayerNormParallel(64, num_parallel)
         self.relu = ModuleParallel(nn.ReLU(inplace=True))
         # NOTE: Exchanging channels
         self.exchange = Exchange()

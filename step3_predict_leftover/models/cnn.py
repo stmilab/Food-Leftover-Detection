@@ -32,71 +32,49 @@ class BatchNorm2dParallel(nn.Module):
 
 
 class CustomCNN(nn.Module):
-    def __init__(self, num_classes=64, num_parallel=3, cen_mode=False):
+    def __init__(self, num_classes=64 * 4, num_parallel=3, cen_mode=False):
         super(CustomCNN, self).__init__()
         self.cen_mode = cen_mode
         self.num_ch = num_parallel
         # Convolutional layers with BatchNorm
         self.conv1 = nn.Conv2d(
-            in_channels=3, out_channels=32, kernel_size=3, stride=1, padding=1
+            in_channels=18, out_channels=32, kernel_size=3, stride=1, padding=1
         )
-        self.bn1 = (
-            BatchNorm2dParallel(32, num_parallel) if cen_mode else nn.BatchNorm2d(32)
-        )
+        self.bn1 = nn.BatchNorm2d(32)
 
         self.conv2 = nn.Conv2d(
             in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1
         )
-        self.bn2 = (
-            BatchNorm2dParallel(64, num_parallel) if cen_mode else nn.BatchNorm2d(64)
-        )
+        self.bn2 = nn.BatchNorm2d(64)
 
         self.conv3 = nn.Conv2d(
             in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1
         )
-        self.bn3 = (
-            BatchNorm2dParallel(128, num_parallel) if cen_mode else nn.BatchNorm2d(128)
-        )
+        self.bn3 = nn.BatchNorm2d(128)
 
         self.conv4 = nn.Conv2d(
             in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1
         )
-        self.bn4 = (
-            BatchNorm2dParallel(256, num_parallel) if cen_mode else nn.BatchNorm2d(256)
-        )
+        self.bn4 = nn.BatchNorm2d(256)
 
         # Pooling layer
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.exchange = Exchange()
-        self.threshold = 1e-3
-        self.bn_list = []
-        for module in self.bn.modules():
-            if isinstance(module, nn.BatchNorm1d) or isinstance(module, nn.BatchNorm2d):
-                self.bn_list.append(module)
         # Fully connected layers
         self.fc1 = nn.Linear(256 * 14 * 14, 512)  # Flattened size depends on input size
-        self.fc2 = nn.Linear(512, num_classes)  # Output 64 logits
-
+        self.fc2 = nn.Linear(512, 4)
         # Dropout for regularization
         self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
-        pdb.set_trace()
-        if self.cen_mode:
-            x = self.cen_forward(x)
-        else:
-            x = self.pool(
-                F.relu(self.bn1(self.conv1(x)))
-            )  # Conv1 -> BatchNorm -> ReLU -> Pool
-            x = self.pool(
-                F.relu(self.bn2(self.conv2(x)))
-            )  # Conv2 -> BatchNorm -> ReLU -> Pool
-            x = self.pool(
-                F.relu(self.bn3(self.conv3(x)))
-            )  # Conv3 -> BatchNorm -> ReLU -> Pool
-            x = self.pool(
-                F.relu(self.bn4(self.conv4(x)))
-            )  # Conv4 -> BatchNorm -> ReLU -> Pool
+        x = self.conv1(x)
+        x = self.pool(F.relu(self.bn1(x)))  # Conv1 -> BatchNorm -> ReLU -> Pool
+        x = self.conv2(x)
+        x = self.pool(F.relu(self.bn2(x)))  # Conv2 -> BatchNorm -> ReLU -> Pool
+        x = self.conv3(x)
+        x = self.pool(F.relu(self.bn3(x)))  # Conv3 -> BatchNorm -> ReLU -> Pool
+        x = self.conv4(x)
+        x = self.pool(F.relu(self.bn4(x)))  # Conv4 -> BatchNorm -> ReLU -> Pool
 
         x = torch.flatten(x, start_dim=1)  # Flatten before FC layers
         x = F.relu(self.fc1(x))  # Fully connected layer 1
